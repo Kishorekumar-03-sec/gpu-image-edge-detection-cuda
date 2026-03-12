@@ -1,0 +1,65 @@
+# GPU Accelerated Image Edge Detection using PyTorch
+
+import torch
+import torchvision.transforms as transforms
+from PIL import Image
+import matplotlib.pyplot as plt
+import numpy as np
+import os
+
+# Check GPU
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print("Using device:", device)
+
+# Create output folder
+os.makedirs("output", exist_ok=True)
+
+# Load sample image
+!wget -O sample.jpg https://upload.wikimedia.org/wikipedia/commons/2/26/YellowLabradorLooking_new.jpg
+
+# Image transform
+transform = transforms.Compose([
+    transforms.Grayscale(),
+    transforms.ToTensor()
+])
+
+image = Image.open("sample.jpg")
+image_tensor = transform(image).unsqueeze(0).to(device)
+
+# Sobel Filters
+sobel_x = torch.tensor([[[[-1,0,1],
+                          [-2,0,2],
+                          [-1,0,1]]]], dtype=torch.float32).to(device)
+
+sobel_y = torch.tensor([[[[-1,-2,-1],
+                          [0,0,0],
+                          [1,2,1]]]], dtype=torch.float32).to(device)
+
+# Apply convolution on GPU
+edge_x = torch.nn.functional.conv2d(image_tensor, sobel_x, padding=1)
+edge_y = torch.nn.functional.conv2d(image_tensor, sobel_y, padding=1)
+
+edges = torch.sqrt(edge_x**2 + edge_y**2)
+
+# Move back to CPU
+edges = edges.squeeze().cpu().detach().numpy()
+
+# Save result
+plt.imsave("output/edges.png", edges, cmap='gray')
+
+# Show results
+plt.figure(figsize=(10,5))
+
+plt.subplot(1,2,1)
+plt.title("Original Image")
+plt.imshow(image)
+plt.axis("off")
+
+plt.subplot(1,2,2)
+plt.title("GPU Edge Detection")
+plt.imshow(edges, cmap="gray")
+plt.axis("off")
+
+plt.show()
+
+print("Output saved in output/edges.png")
